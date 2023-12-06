@@ -15,9 +15,10 @@
 #define ENTRYPOINT_MAIN int main(int argc, char* argv[])
 #endif
 
-static const uint32_t WIN_WIDTH  = 1920;
-static const uint32_t WIN_HEIGHT = 1008;
-static const uint32_t FPS_LIMIT  = 60;
+static const uint32_t WIN_WIDTH     = 1920;
+static const uint32_t WIN_HEIGHT    = 1008;
+static const uint32_t FPS_LIMIT     = 60;
+static const uint32_t MAX_DOT_COUNT = 500;
 
 static const sf::Color BACKGROUND_CLR = sf::Color(1, 1, 1);
 
@@ -64,7 +65,7 @@ changeColor()
 {
   int pos = 0;
   while (true) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(800));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     lockField.lock();
     field[pos].setColor(randomizer(0, 255), randomizer(0, 255), randomizer(0, 255));
     lockField.unlock();
@@ -79,11 +80,12 @@ void
 fillingField()
 {
   while (true) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     lockField.lock();
 
     field.push_back(Point(randomizer(0, WIN_WIDTH), randomizer(0, WIN_HEIGHT)));
+    if (field.size() > MAX_DOT_COUNT) field.erase(field.begin());
 
     lockField.unlock();
   }

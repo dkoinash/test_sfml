@@ -1,8 +1,11 @@
+#include <cmath>
 #include <cstdint>
 #include <mutex>
 #include <random> // std::uniform_int_distribution
 #include <thread>
 #include <vector>
+
+#define PI std::acos(-1)
 
 #include <SFML/Graphics.hpp>
 
@@ -16,9 +19,12 @@
 #endif
 
 static const uint32_t WIN_WIDTH     = 1920;
-static const uint32_t WIN_HEIGHT    = 1008;
+static const uint32_t WIN_HEIGHT    = 1080;
 static const uint32_t FPS_LIMIT     = 60;
-static const uint32_t MAX_DOT_COUNT = 500;
+static const uint32_t MAX_DOT_COUNT = 2000;
+static const float    STEP_ANGLE    = 0.02f;
+static const float    MIN_SIZE      = 0.6f;
+static const float    MAX_SIZE      = 1.8f;
 
 static const sf::Color BACKGROUND_CLR = sf::Color(1, 1, 1);
 
@@ -26,36 +32,51 @@ struct Point
 {
   Point()
   {
-    x = 0;
-    y = 0;
+    x     = 0.f;
+    y     = 0.f;
+    r     = 0.f;
+    red   = 255;
+    green = 255;
+    blue  = 255;
   }
-  Point(uint32_t x_, uint32_t y_)
+  Point(float   x_,
+        float   y_,
+        float   r_     = 1.f,
+        uint8_t red_   = 255,
+        uint8_t green_ = 255,
+        uint8_t blue_  = 255)
     : x(x_)
     , y(y_)
+    , r(r_)
+    , red(red_)
+    , green(green_)
+    , blue(blue_)
   {}
-  void setColor(uint8_t _red = 0, uint8_t _green = 0, uint8_t _blue = 0)
+  void setColor(uint8_t _red, uint8_t _green, uint8_t _blue)
   {
     red   = _red;
     green = _green;
     blue  = _blue;
   }
 
-  uint32_t x = 0;
-  uint32_t y = 0;
-  uint8_t  red;
-  uint8_t  green;
-  uint8_t  blue;
+  float   x;
+  float   y;
+  float   r;
+  uint8_t red;
+  uint8_t green;
+  uint8_t blue;
 };
 
 std::vector<Point> field;
 std::mutex         lockField;
 
-auto
-randomizer(int minValue, int maxValue)
+template<class T>
+T
+randomizer(T minValue, T maxValue)
 {
-  std::random_device              rd;
-  std::mt19937                    gen(rd());
-  std::uniform_int_distribution<> distrib(minValue, maxValue);
+  std::random_device               rd;
+  std::mt19937                     gen(rd());
+  std::uniform_real_distribution<> distrib(minValue, maxValue);
 
   return distrib(gen);
 }
@@ -77,6 +98,32 @@ changeColor()
 }
 
 void
+rotate(Point base = Point(0.f, 0.f), float angle = 0.f)
+{
+  while (true) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    float radAngle = angle / 180 * PI;
+
+    lockField.lock();
+    for (auto it = field.begin(); it != field.end(); ++it) {
+      Point pnt = *it;
+
+      float loc_x = pnt.x - base.x;
+      float loc_y = pnt.y - base.y;
+      float r     = std::sqrtf(std::powf(loc_x, 2.f) + std::powf(loc_y, 2.f));
+      float alfa  = std::acosf(loc_x / r);
+      pnt.x       = r * std::cosf(alfa + radAngle);
+      pnt.y       = std::sqrtf(std::powf(r, 2.f) - std::powf(pnt.x, 2.f));
+      pnt.x       = pnt.x + base.x;
+      pnt.y       = pnt.y + base.y;
+
+      *it = pnt;
+    }
+    lockField.unlock();
+  }
+}
+
+void
 fillingField()
 {
   while (true) {
@@ -84,7 +131,9 @@ fillingField()
 
     lockField.lock();
 
-    field.push_back(Point(randomizer(0, WIN_WIDTH), randomizer(0, WIN_HEIGHT)));
+    field.push_back(Point(randomizer(-float(WIN_WIDTH), float(WIN_WIDTH)),
+                          randomizer(-float(WIN_HEIGHT), float(WIN_HEIGHT)),
+                          randomizer(MIN_SIZE, MAX_SIZE)));
     if (field.size() > MAX_DOT_COUNT) field.erase(field.begin());
 
     lockField.unlock();
@@ -93,7 +142,9 @@ fillingField()
 
 ENTRYPOINT_MAIN
 {
-  sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "SFML works!", sf::Style::None);
+  sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT),
+                          "SFML works!",
+                          sf::Style::Fullscreen); // sf::Style::Close); // sf::Style::None
   window.setFramerateLimit(FPS_LIMIT);
 
   sf::Font font;
@@ -101,47 +152,14 @@ ENTRYPOINT_MAIN
 
   std::thread th_field(fillingField);
   std::thread th_color(changeColor);
+  Point       base(WIN_WIDTH / 2, WIN_HEIGHT / 2);
+  std::thread th_rotation(rotate, base, STEP_ANGLE);
   th_field.detach();
   th_color.detach();
+  th_rotation.detach();
 
   while (window.isOpen()) {
     sf::Event event;
-#if DEPRECATED
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-    auto rndWidth = []() {
-      std::random_device              rd;
-      std::mt19937                    gen(rd());
-      std::uniform_int_distribution<> distrib(0, WIN_WIDTH);
-
-      uint32_t value;
-
-      value = distrib(gen);
-
-      return value;
-    };
-
-    auto rndHeight = []() {
-      std::random_device              rd;
-      std::mt19937                    gen(rd());
-      std::uniform_int_distribution<> distrib(0, WIN_HEIGHT);
-
-      uint32_t value;
-
-      value = distrib(gen);
-
-      return value;
-    };
-
-    // Point point;
-    // point.x = rndWidth();
-    // point.y = rndHeight();
-
-    field.push_back(Point(rndWidth(), rndHeight()));
-#else
-
-#endif // DEPRECATED
 
     while (window.pollEvent(event)) {
       if (event.type == sf::Event::Closed) {
@@ -160,9 +178,11 @@ ENTRYPOINT_MAIN
     window.clear(BACKGROUND_CLR);
 
     for (int i = 0; i < field.size(); ++i) {
-      sf::CircleShape circle(1.0f);
       lockField.lock();
-      circle.move(field[i].x, field[i].y);
+      sf::CircleShape circle(field[i].r);
+      if (field[i].x > 0.f && field[i].y > 0.f && field[i].x < float(WIN_WIDTH) &&
+          field[i].y < float(WIN_HEIGHT))
+        circle.move(field[i].x, field[i].y);
 
       circle.setFillColor(sf::Color(field[i].red, field[i].green, field[i].blue));
       lockField.unlock();

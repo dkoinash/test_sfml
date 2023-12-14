@@ -21,7 +21,7 @@
 static const uint32_t WIN_WIDTH     = 1920;
 static const uint32_t WIN_HEIGHT    = 1080;
 static const uint32_t FPS_LIMIT     = 60;
-static const uint32_t MAX_DOT_COUNT = 2000;
+static const uint32_t MAX_DOT_COUNT = 800;
 static const float    STEP_ANGLE    = 0.02f;
 static const float    MIN_SIZE      = 0.6f;
 static const float    MAX_SIZE      = 1.8f;
@@ -152,7 +152,7 @@ ENTRYPOINT_MAIN
 
   std::thread th_field(fillingField);
   std::thread th_color(changeColor);
-  Point       base(WIN_WIDTH / 2, WIN_HEIGHT / 2);
+  Point       base;//(WIN_WIDTH / 2, WIN_HEIGHT / 2);
   std::thread th_rotation(rotate, base, STEP_ANGLE);
   th_field.detach();
   th_color.detach();
